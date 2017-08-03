@@ -4456,18 +4456,20 @@ int AVG_ToHertDaySinkou( int script )
 		case 4:	_youbi = (_days+3)%7; break;
 		case 5:	_youbi = (_days+5)%7; break;
 		}
+		// j“ú
 		if( _month==3 && _days==20 ) _syukujitu=1;
 		if( _month==4 && _days==29 ) _syukujitu=1;
 		if( _month==5 && _days==3 ) _syukujitu=1;
 		if( _month==5 && _days==4 ) _syukujitu=1;
 		if( _month==5 && _days==5 ) _syukujitu=1;
 
+		// t‹x‚Ý
 		if( _month==3 && _days>=25 ) _syukujitu=2;
 		if( _month==4 && _days<=7  ) _syukujitu=2;
 
 
 		if( (_youbi==0 || _syukujitu!=0) && _times==5 ){
-			_times=6;
+			_times=6; // “új“úAt‹x‚Ý‚ÍˆÚ“®‘I‘ð‚ð•\Ž¦‚¹‚¸–é‚É
 		}
 		switch( _times ){
 			case 0:	wsprintf( buf, "EV_%02d%02dMORNING.sdt",_month, _days );	break;	
