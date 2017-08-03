@@ -1,12 +1,16 @@
+/** @file
+	AVG 背景関連の定義
+*/
 
 #ifndef	_GM_AVGBACK_H_
 #define _GM_AVGBACK_H_
 
 
+/// 背景情報構造体
 typedef struct{
 	int		flag;		
 
-	int		bno;		
+	int		bno;		///< 背景番号
 
 	int		x, y;		
 	int		x2, y2;		
@@ -69,7 +73,7 @@ typedef struct{
 	int		tone_char;	
 	int		tone_back;	
 
-	int		wether;	
+	int		wether;	///< 天候
 
 	int		sp_flag;
 
@@ -78,7 +82,7 @@ typedef struct{
 	int		redraw;		
 
 }BACK_STRUCT;
-extern BACK_STRUCT		BackStruct;
+extern BACK_STRUCT		BackStruct; ///< 背景情報
 
 extern char	*tone_fname[];
 extern char	tone_fname2[];
@@ -144,6 +148,12 @@ extern char	tone_fname2[];
 #define BACK_SY			64
 #define CHIPBACK_SY		32
 
+/**
+	天候を設定
+	@param weather 天候
+	       - 0 晴れ
+	       - 1 雨
+*/
 extern void AVG_SetWeatherMode( int weather );
 
 extern void AVG_SetTimeMode( int tone_no, int eff_no );
@@ -198,15 +208,38 @@ extern void AVG_SetRippleLost( void );
 extern BOOL AVG_WaitRippleLost( void );
 
 
-extern int	Set_month;
-extern int	Set_day;
+extern int	Set_month; ///< 月設定値
+extern int	Set_day; ///< 日設定値
 
+/**
+	月日を変更.
+	変更は AVG_SetCalender() を呼び出した時反映される。
+	@param month 月
+	@param day 日
+*/
 extern void AVG_SkipDate( int month, int day );
+
+/**
+	カレンダーを表示.
+	AVG_SkipDate() の設定はここで反映される。
+	@param _month 月. -1 の場合、月日ともフラグ値を用いる
+	@param _days 日
+	@retval TRUE 表示終了
+	@retval FALSE 表示継続
+*/
 extern BOOL AVG_SetCalender( int _month, int _days );
+
+/**
+	時計を表示.
+	@param clock 時間
+	@retval TRUE 表示終了
+	@retval FALSE 表示継続
+*/
 extern BOOL AVG_ViewClock( int clock );
 
+/// スプライトBMP情報構造体
 typedef struct{
-	char	fname[32];
+	char	fname[32]; ///< ファイル名
 	long	tone_type;
 	char	tfname[32];
 	char	pack[8];

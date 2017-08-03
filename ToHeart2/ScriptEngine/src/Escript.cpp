@@ -1,3 +1,7 @@
+/** @file
+	イベントスクリプト関連の実装.
+*/
+
 #include "mm_std.h"
 #include "main.h"
 
@@ -16,20 +20,24 @@ void ESC_SetDrawFlag(void)
 	MainWindow.draw_flag=ON;
 }
 
-
-
 int		ESC_FlagBuf[ ESC_FLAG_MAX ];				
 int		ESC_GameFlagBuf[ ESC_FLAG_MAX ];			
 
 
+/// コマンドパラメータ構造体
 typedef struct{
-	char	str[1024];	
-	long	num;		
-	long	reg;		
+	char	str[1024];	///< 文字列
+	long	num;		///< 数値
+	long	reg;		///< num 番レジスタに代入待ちの値
 }ESC_PARAM;
-ESC_PARAM		EscParam[15];
-int				EscCnt = 0;
+ESC_PARAM		EscParam[15]; ///< コマンドパラメータ
+int				EscCnt = 0; ///< コマンド実行時にプログラムカウンタを進める数
 
+/**
+	レジスタを含む数式文字列を数値式に変換して計算結果を取得.
+	@param cal 数式文字列
+	@return 計算結果
+*/
 static int GetScriptParamCal( char *cal )
 {
 	int		i=0,j=0,reg;
@@ -59,13 +67,21 @@ static int GetScriptParamCal( char *cal )
 
 
 
+/**
+	パラメータ値を取得.
+	@param pc プログラムカウンタ
+	@param [in] start 読み込み始点
+	@param [out] start 読み込み終点
+	@param size パラメータが数式でない場合の長さ
+	@return パラメータ値
+*/
 static int GetScriptParam( int pc, int *start,int size )
 {
 	int mode;
 	int	ret;
 
 	mode = EXEC_LangBuf[ pc + (*start)++ ];						
-	if(mode==2){
+	if(mode==2){ // 数式
 		int		i,len;
 		char	buf[256];
 
@@ -80,13 +96,20 @@ static int GetScriptParam( int pc, int *start,int size )
 			case 2: ret  = EXEC_GetShortValue( &EXEC_LangBuf[ pc + *start ] );	(*start)+=2;	break;	
 			case 4: ret  = EXEC_GetLongValue(  &EXEC_LangBuf[ pc + *start ] );	(*start)+=4;	break;	
 		}
-		if( mode == 0 ) { ret = EXEC_LangInfo->reg[ ret ]; }					
+		if( mode == 0 ) { ret = EXEC_LangInfo->reg[ ret ]; } // レジスタ値
 	}
 	return ret;
 }
 
 
 
+/**
+	パラメータ BYTE 値を取得.
+	@param pc プログラムカウンタ
+	@param [in] start 読み込み始点
+	@param [out] start 読み込み終点
+	@return パラメータ BYTE 値
+*/
 static int GetScriptParamByte( int pc, int *start )
 {
 	return EXEC_LangBuf[ pc + (*start)++ ];						
@@ -94,6 +117,13 @@ static int GetScriptParamByte( int pc, int *start )
 
 
 
+/**
+	パラメータ WORD 値を取得.
+	@param pc プログラムカウンタ
+	@param [in] start 読み込み始点
+	@param [out] start 読み込み終点
+	@return パラメータ WORD 値
+*/
 static int GetScriptParamWord( int pc, int *start )
 {
 	int	ret;
@@ -105,11 +135,19 @@ static int GetScriptParamWord( int pc, int *start )
 
 
 
+/**
+	パラメータ文字列を取得
+	@param pc プログラムカウンタ
+	@param [in] start 読み込み始点
+	@param [out] start 読み込み終点
+	@param [out] buf パラメータ文字列
+	@return 読み込み終点
+*/
 static int GetScriptParam_str( int pc, int *start, char *buf )
 {
 	int	i,len;
 
-	len   = EXEC_LangBuf[ pc + (*start)++ ];		
+	len   = EXEC_LangBuf[ pc + (*start)++ ]; // 文字数（BYTE）
 	for( i=0; i<len; i++ ) { buf[ i ] = EXEC_LangBuf[ pc + (*start)++ ]; }
 	buf[ i ] = 0x00;
 	return *start;
@@ -117,12 +155,20 @@ static int GetScriptParam_str( int pc, int *start, char *buf )
 
 
 
+/**
+	パラメータ文字列を取得
+	@param pc プログラムカウンタ
+	@param [in] start 読み込み始点
+	@param [out] start 読み込み終点
+	@param [out] buf パラメータ文字列
+	@return 読み込み終点
+*/
 static int GetScriptParam_str2( int pc, int *start, char *buf )
 {
 	int	i,len;
 
 	len  = EXEC_LangBuf[ pc + (*start)++ ];	
-	len |= EXEC_LangBuf[ pc + (*start)++ ]<<8;	
+	len |= EXEC_LangBuf[ pc + (*start)++ ]<<8; // 文字数（WORD）
 	for( i=0; i<len; i++ ) { buf[ i ] = EXEC_LangBuf[ pc + (*start)++ ]; }
 	buf[ i ] = 0x00;
 	return *start;
@@ -131,6 +177,10 @@ static int GetScriptParam_str2( int pc, int *start, char *buf )
 
 
 
+/**
+	命令のパラメータを取得.
+	@param opr 命令コード
+*/
 static int GetScriptParamControl( int opr )
 {
 	int		i;
@@ -230,6 +280,10 @@ static int GetScriptParamControlEx( int pc, int opr, char *str )
 
 
 
+/**
+	レジスタ代入待ちの値があれば、レジスタに代入
+	@param opr 命令コード
+*/
 static void SetScriptRegisterControl( int opr )
 {
 	int		i;
@@ -277,7 +331,7 @@ void ESC_InitGameFlag( void )
 
 
 
-static char	EOprFlag[ESC_OPR_MAX];
+static char	EOprFlag[ESC_OPR_MAX]; ///< イベント命令実行フラグ
 void ESC_InitEOprFlag( void )
 {
 	int	i;
@@ -287,26 +341,30 @@ void ESC_InitEOprFlag( void )
 
 
 
+/**
+	フラグに値を代入する命令.
+	flag[EscParam[0]] ← EscParam[1]
+*/
 static void ESC_EOprSetFlag( void )
 {
 	
-	if( 50<=EscParam[0].num && EscParam[0].num<100){
+	if( 50<=EscParam[0].num && EscParam[0].num<100){ // ゲーム全体フラグ
 		AVG_SetGameFlag( EscParam[0].num, EscParam[1].num );
 
 		int	i,cnt;
 		cnt=0;
-		if( AVG_GetGameFlag(81) ) cnt++;
+		if( AVG_GetGameFlag(81) ) cnt++; // このみ
 
-		if( AVG_GetGameFlag(83) ) cnt++;
-		if( AVG_GetGameFlag(84) ) cnt++;
-		if( AVG_GetGameFlag(85) ) cnt++;
-		if( AVG_GetGameFlag(86) ) cnt++;
-		if( AVG_GetGameFlag(88) ) cnt++;
-		if( AVG_GetGameFlag(89) ) cnt++;
-		if( AVG_GetGameFlag(90) ) cnt++;
-		if( AVG_GetGameFlag(93) ) cnt++;
+		if( AVG_GetGameFlag(83) ) cnt++; // 愛佳
+		if( AVG_GetGameFlag(84) ) cnt++; // 環
+		if( AVG_GetGameFlag(85) ) cnt++; // 花梨
+		if( AVG_GetGameFlag(86) ) cnt++; // 珊瑚・瑠璃
+		if( AVG_GetGameFlag(88) ) cnt++; // 由真
+		if( AVG_GetGameFlag(89) ) cnt++; // るーこ
+		if( AVG_GetGameFlag(90) ) cnt++; // 優季
+		if( AVG_GetGameFlag(93) ) cnt++; // ささら
 
-		AVG_SetGameFlag( 80, cnt );
+		AVG_SetGameFlag( 80, cnt ); // クリア人数
 	}else{
 		ESC_SetFlag( EscParam[0].num, EscParam[1].num  );
 	}
@@ -317,10 +375,14 @@ static void ESC_EOprSetFlag( void )
 
 
 
+/**
+	フラグから値を取得してレジスタに代入する命令.
+	reg[EscParam[1]] ← flag[EscParam[0]]
+*/
 static void ESC_EOprGetFlag( void )
 {
 	
-	if( 50<=EscParam[0].num && EscParam[0].num<100){
+	if( 50<=EscParam[0].num && EscParam[0].num<100){ // ゲーム全体フラグ
 		EscParam[1].reg = AVG_GetGameFlag( EscParam[0].num );
 	}else{
 		EscParam[1].reg = ESC_GetFlag( EscParam[0].num );
@@ -331,6 +393,10 @@ static void ESC_EOprGetFlag( void )
 
 
 
+/**
+	ゲーム全体フラグに値を代入する命令.
+	flag[EscParam[0]] ← EscParam[1]
+*/
 static void ESC_EOprSetGameFlag( void )
 {
 	
@@ -342,6 +408,10 @@ static void ESC_EOprSetGameFlag( void )
 
 
 
+/**
+	ゲーム全体フラグから値を取得してレジスタに代入する命令.
+	reg[EscParam[1]] ← flag[EscParam[0]]
+*/
 static void ESC_EOprGetGameFlag( void )
 {
 	
@@ -353,6 +423,12 @@ static void ESC_EOprGetGameFlag( void )
 
 
 
+/**
+	ファイル名からスクリプトを読み込む.
+	@param fno ファイル名の拡張子より前の部分
+	@see EXEC_SLoad()
+	@see AVG_SetScenarioNo()
+*/
 int LoadScript( char *fno )
 {
 	char	str[256];
@@ -377,6 +453,12 @@ int LoadScript( char *fno )
 	return ret;
 
 }
+
+/**
+	ファイル名からスクリプトを読み込む命令.
+	- EscParam[0] ファイル名
+	@see LoadScript()
+*/
 static void ESC_EOprLoadScript( void )
 {
 	if( !LoadScript(EscParam[0].str) ){
@@ -387,6 +469,13 @@ static void ESC_EOprLoadScript( void )
 
 
 
+/**
+	ファイル番号からスクリプトを読み込む.
+	5文字に整形するので、ToHeart2では使われていないはず（Routesとか？）
+	@param fno ファイル番号
+	@see EXEC_SLoad()
+	@see AVG_SetScenarioNo()
+*/
 static void LoadScriptNum( int	fno )
 {
 	char	str[256];
@@ -396,6 +485,12 @@ static void LoadScriptNum( int	fno )
 	AVG_SetScenarioNo( fno );
 
 }
+
+/**
+	ファイル番号からスクリプトを読み込む命令.
+	- EscParam[0] ファイル番号
+	@see LoadScriptNum()
+*/
 static void ESC_EOprLoadScriptNum( void )
 {
 
@@ -405,6 +500,10 @@ static void ESC_EOprLoadScriptNum( void )
 
 
 
+/**
+	ゲームを終了し、タイトルに戻る命令.
+	@see AVG_SetGotoTitle()
+*/
 static void ESC_EOprGameEnd( void )
 {
 	if( EscParam[0].num==-1 ) EscParam[0].num = 0;
@@ -416,6 +515,12 @@ static void ESC_EOprGameEnd( void )
 
 
 
+/**
+	スクリプトブロックをサブルーチンとしてコールする命令.
+	- EscParam[0] スクリプトブロック番号
+	- EscParam[1-15] reg[0-14]に代入される引数列
+	@see EXEC_OprCallFunc()
+*/
 static void ESC_EOprCallFunc( void )
 {
 	long	num[14],i;
@@ -424,6 +529,12 @@ static void ESC_EOprCallFunc( void )
 	EXEC_OprCallFunc( EscParam[0].num, EscCnt, num );
 }
 
+/**
+	カレンダーを表示する命令.
+	- EscParam[0] 月
+	- EscParam[1] 日
+	@see AVG_SetCalender()
+*/
 static void ESC_EOprViewCalender( void )
 {
 	if( AVG_SetCalender( EscParam[0].num, EscParam[1].num ) ){
@@ -433,6 +544,11 @@ static void ESC_EOprViewCalender( void )
 }
 
 
+/**
+	時計を表示する命令.
+	- EscParam[0] 時間
+	@see AVG_ViewClock()
+*/
 static void ESC_EOprViewClock( void )
 {
 	if(EscParam[1].num==-1) EscParam[1].num = 0;
@@ -445,6 +561,13 @@ static void ESC_EOprViewClock( void )
 }
 
 
+/**
+	桜吹雪を表示する命令.
+	- EscParam[0]
+	- EscParam[1]
+	- EscParam[2]
+	@see AVG_SetSakura()
+*/
 static void ESC_EOprSetSakura( void )
 {
 	AVG_SetSakura( EscParam[0].num, EscParam[1].num, EscParam[2].num, 1 );
@@ -452,6 +575,10 @@ static void ESC_EOprSetSakura( void )
 	EXEC_AddPC( EscCnt );
 }
 
+/**
+	桜吹雪を停止する命令.
+	@see AVG_StopSakura()
+*/
 static void ESC_EOprStopSakura( void )
 {
 	AVG_StopSakura();
@@ -459,6 +586,12 @@ static void ESC_EOprStopSakura( void )
 	EXEC_AddPC( EscCnt );
 }
 
+/**
+	月日を変更する命令.
+	- EscParam[0] 月
+	- EscParam[1] 日
+	@see AVG_SkipDate()
+*/
 static void ESC_EOprSkipDate( void )
 {
 	AVG_SkipDate( EscParam[0].num, EscParam[1].num );
@@ -469,6 +602,11 @@ static void ESC_EOprSkipDate( void )
 
 
 
+/**
+	天候を変更する命令.
+	- EscParam[0] 天候
+	@see AVG_SetWeatherMode()
+*/
 static void ESC_EOprSetWeatherMode( void )
 {
 	if(EscParam[0].num==-1) EscParam[0].num = 0;
@@ -1160,6 +1298,20 @@ static void ESC_EOprSetFlash( void )
 
 
 
+/**
+	立ち絵を表示登録する命令.
+	- EscParam[0] キャラ
+	- EscParam[1] ポーズ
+	- EscParam[2] 位置
+	              デフォルト値の場合、そのキャラが既に表示されている位置
+			      表示されていない場合は中央
+	- EscParam[3] 表示方法
+	- EscParam[4] レイヤ
+	- EscParam[5] 明度
+	- EscParam[6] α値
+	- EscParam[7] 表示までのフレーム数
+	@see AVG_SetChar()
+*/
 static void ESC_EOprSetChar( void )
 {
 	
@@ -1179,6 +1331,13 @@ static void ESC_EOprSetChar( void )
 
 
 
+/**
+	立ち絵を表示解除する命令.
+	- EscParam[0] キャラ
+	- EscParam[1] 消去方法
+	- EscParam[2] 消去までのフレーム数
+	@see AVG_ResetChar()
+*/
 static void ESC_EOprResetChar( void )
 {
 	
@@ -1192,6 +1351,13 @@ static void ESC_EOprResetChar( void )
 
 
 
+/**
+	立ち絵を即座にポーズ変更する命令.
+	- EscParam[0] キャラ
+	- EscParam[1] ポーズ
+	- EscParam[2] 変更方法
+	@see AVG_SetCharPose()
+*/
 static void ESC_EOprSetCharPose( void )
 {
 	
@@ -1202,6 +1368,12 @@ static void ESC_EOprSetCharPose( void )
 
 
 
+/**
+	立ち絵の表示位置変更する命令.
+	- EscParam[0] キャラ
+	- EscParam[1] 位置
+	@see AVG_SetCharLocate()
+*/
 static void ESC_EOprSetCharLocate( void )
 {
 	
@@ -1212,6 +1384,12 @@ static void ESC_EOprSetCharLocate( void )
 
 
 
+/**
+	立ち絵の描画レイヤ変更する命令.
+	- EscParam[0] キャラ
+	- EscParam[1] レイヤ
+	@see AVG_SetCharLayer()
+*/
 static void ESC_EOprSetCharLayer( void )
 {
 	
@@ -1428,6 +1606,10 @@ static void ESC_EOprSetTextDisp(void)
 
 
 
+/**
+	キー入力を待つ命令.
+	@see AVG_WaitKey()
+*/
 static void ESC_EOprWaitKey(void)
 {
 	
@@ -1498,11 +1680,18 @@ static void ESC_EOprSetSelectEx(void)
 
 
 
+/**
+	BGM をループ再生する命令.
+	- EscParam[0] BGM番号
+	- EscParam[1] フェード時間
+	@see AVG_PlayBGM()
+*/
 static void ESC_EOprPlayBgm(void)
 {
 	AVG_PlayBGM( EscParam[0].num, EscParam[1].num, 1, 0xff, 0 );
 	EXEC_AddPC( EscCnt );
 }
+
 static void ESC_EOprPlayBgmEx(void)
 {
 	switch(EscParam[0].num){
@@ -2088,12 +2277,22 @@ static void ESC_EOprSetPotaPota( void )
 	}
 }
 
+/**
+	システム時刻をレジスタに格納する命令.
+	- EscParam[0] 格納先レジスタ番号
+	@see STD_timeGetTime()
+*/
 static void ESC_EOprGetTime( void )
 {
 	EscParam[0].reg = STD_timeGetTime();
 	EXEC_AddPC( EscCnt );
 }
 
+/**
+	指定システム時刻までウェイトする命令.
+	- EscParam[0] ウェイト終了するシステム時刻
+	@see STD_timeGetTime()
+*/
 static void ESC_EOprWaitTime( void )
 {
 	if( STD_timeGetTime() >= EscParam[0].num ){
@@ -2101,7 +2300,13 @@ static void ESC_EOprWaitTime( void )
 	}
 }
 
-
+/**
+	現在の日時をレジスタに格納する命令.
+	- EscParam[0] 時を格納するレジスタ番号
+	- EscParam[1] 日を格納するレジスタ番号
+	- EscParam[2] 月を格納するレジスタ番号
+	- EscParam[3] 年を格納するレジスタ番号
+*/
 static void ESC_EOprGetSystemTime( void )
 {
 	SYSTEMTIME	sys_time;
@@ -2199,8 +2404,10 @@ static void ESC_EOprSetCutCut( void )
 	EXEC_AddPC( EscCnt );
 }
 
-
-
+/**
+	レジスタに値を代入する命令.
+	reg[EscParam[0]] ← EscParam[1]
+*/
 static void ESC_EOprMov2( void )
 {
 	EscParam[0].reg = EscParam[1].num;
@@ -2208,12 +2415,20 @@ static void ESC_EOprMov2( void )
 }
 
 #include "math.h"
+
+/**
+	正弦を求める命令.
+*/
 static void ESC_EOprSin( void )
 {
 	if(EscParam[2].num==-1) EscParam[2].num = 4096;
 	EscParam[0].reg = (int)( sin(( LOOP(EscParam[1].num,3600) * PAI)/1800.0)*EscParam[2].num );
 	EXEC_AddPC( EscCnt );
 }
+
+/**
+	余弦を求める命令.
+*/
 static void ESC_EOprCos( void )
 {
 	if(EscParam[2].num==-1) EscParam[2].num = 4096;
@@ -2221,11 +2436,23 @@ static void ESC_EOprCos( void )
 	EXEC_AddPC( EscCnt );
 }
 
+/**
+	絶対値を求める命令.
+	reg[EscParam[0]] ← abs(EscParam[1])
+*/
 static void ESC_EOprAbs( void )
 {
 	EscParam[0].reg = abs(EscParam[1].num);
 	EXEC_AddPC( EscCnt );
 }
+
+
+
+
+
+
+
+
 
 static void ESC_EOprBD( void )
 {
@@ -2233,7 +2460,19 @@ static void ESC_EOprBD( void )
 	EXEC_AddPC( EscCnt );
 }
 
+/**
+	背景を変更し、立ち絵を消去する簡易命令.
+	- EscParam[0] 変更方法（ハーフトーン）
+	- EscParam[1] 主背景値
+	- EscParam[2] 副背景値
+	              背景値 = param1 * 10 + param2
+	- EscParam[3] 
+	- EscParam[4] x座標
+	- EscParam[5] y座標
+	- EscParam[6] 
 
+	@see AVG_SetBack()
+*/
 static void ESC_EOprB( void )
 {
 	int	bak_no=-1;
@@ -2671,10 +2910,23 @@ static void ESC_EOprF( void )
 	}
 }
 
+/**
+	立ち絵を表示登録する簡易命令.
+	- EscParam[0] キャラ
+	- EscParam[1] ポーズ
+	- EscParam[2] 位置
+	              デフォルト値の場合、そのキャラが既に表示されている位置
+			      表示されていない場合は中央
+	- EscParam[3] レイヤ
+	- EscParam[4] 表示方法
+	- EscParam[5] 明度
+	- EscParam[6] α値
+	- EscParam[7] 表示までのフレーム数
 
+	@see AVG_SetChar()
+*/
 static void ESC_EOprC( void )
 {
-	
 	if(EscParam[2].num==-1){
 		int	pos = AVG_CheckCharLocate( EscParam[0].num );
 		EscParam[2].num = (pos==-1) ? 1 : pos ;
@@ -2688,33 +2940,25 @@ static void ESC_EOprC( void )
 	
 	if(!EOprFlag[ESC_C]){
 		EOprFlag[ESC_C] = 1;
-
-
-
-
-
-
-			AVG_SetChar( EscParam[0].num, EscParam[1].num, EscParam[2].num, EscParam[4].num, EscParam[3].num, EscParam[5].num, EscParam[6].num, EscParam[7].num );
-
-
-	
+		AVG_SetChar( EscParam[0].num, EscParam[1].num, EscParam[2].num, EscParam[4].num, EscParam[3].num, EscParam[5].num, EscParam[6].num, EscParam[7].num );
 	}
-	
 
-
-
-
-
-
-		if( !AVG_WaitChar( EscParam[0].num ) ){	
-			EOprFlag[ESC_C] = 0;
-			EXEC_AddPC( EscCnt );
-		}
-
+	if( !AVG_WaitChar( EscParam[0].num ) ){	
+		EOprFlag[ESC_C] = 0;
+		EXEC_AddPC( EscCnt );
+	}
 }
+
+/**
+	立ち絵を表示解除する簡易命令.
+	- EscParam[0] キャラ
+	- EscParam[1] 消去方法
+	- EscParam[2] 消去までのフレーム数
+	
+	@see AVG_ResetChar()
+*/
 static void ESC_EOprCR( void )
 {
-	
 	if(EscParam[1].num==-1) EscParam[1].num = 0;
 	if(EscParam[2].num==-1) EscParam[2].num = -1;
 	
@@ -2728,9 +2972,17 @@ static void ESC_EOprCR( void )
 		EXEC_AddPC( EscCnt );
 	}
 }
+
+/**
+	立ち絵のポーズ変更する簡易命令.
+	- EscParam[0] キャラ
+	- EscParam[1] ポーズ
+	- EscParam[2] 変更方法
+	
+	@see AVG_SetCharPose()
+*/
 static void ESC_EOprCP( void )
 {
-	
 	if(!EOprFlag[ESC_CP]){
 		EOprFlag[ESC_CP] = 1;
 
@@ -2743,9 +2995,17 @@ static void ESC_EOprCP( void )
 		EXEC_AddPC( EscCnt );
 	}
 }
+
+/**
+	立ち絵の表示位置変更する簡易命令.
+	- EscParam[0] キャラ
+	- EscParam[1] 位置
+	- EscParam[2] 変更までのフレーム数
+	
+	@see AVG_SetCharLocate()
+*/
 static void ESC_EOprCL( void )
 {
-	
 	if(!EOprFlag[ESC_CL]){
 		EOprFlag[ESC_CL] = 1;
 		if( EscParam[2].num==-1 ) EscParam[2].num = -1;
@@ -2757,9 +3017,16 @@ static void ESC_EOprCL( void )
 		EXEC_AddPC( EscCnt );
 	}
 }
+
+/**
+	立ち絵の描画レイヤ変更する簡易命令.
+	- EscParam[0] キャラ
+	- EscParam[1] レイヤ
+
+	@see AVG_SetCharLayer()
+*/
 static void ESC_EOprCY( void )
 {
-	
 	if(!EOprFlag[ESC_CY]){
 		EOprFlag[ESC_CY] = 1;
 		AVG_SetCharLayer( EscParam[0].num, EscParam[1].num );
@@ -2770,9 +3037,17 @@ static void ESC_EOprCY( void )
 		EXEC_AddPC( EscCnt );
 	}
 }
+
+/**
+	立ち絵のフェード変更する簡易命令.
+	- EscParam[0] キャラ
+	- EscParam[1] 明度
+	- EscParam[2] 変更までのフレーム数
+	
+	@see AVG_SetCharBright()
+*/
 static void ESC_EOprCB( void )
 {
-	
 	if(!EOprFlag[ESC_CB]){
 		EOprFlag[ESC_CB] = 1;
 		AVG_SetCharBright( EscParam[0].num, EscParam[1].num, EscParam[2].num );
@@ -2783,9 +3058,17 @@ static void ESC_EOprCB( void )
 		EXEC_AddPC( EscCnt );
 	}
 }
+
+/**
+	立ち絵のαブレンド簡易変更.
+	- EscParam[0] キャラ
+	- EscParam[1] α値
+	- EscParam[2] 変更までのフレーム数
+	
+	@see AVG_SetCharAlph()
+*/
 static void ESC_EOprCA( void )
 {
-	
 	if(!EOprFlag[ESC_CA]){
 		EOprFlag[ESC_CA] = 1;
 		AVG_SetCharAlph( EscParam[0].num, EscParam[1].num, EscParam[2].num );
@@ -2797,6 +3080,20 @@ static void ESC_EOprCA( void )
 	}
 }
 
+/**
+	立ち絵を即座に表示登録する簡易命令.
+	ESC_EOprC param0, param1, param2, param3, 3, param4, param5, -1 と等価。
+	- EscParam[0] キャラ
+	- EscParam[1] ポーズ
+	- EscParam[2] 位置
+	              デフォルト値の場合、そのキャラが既に表示されている位置
+			      表示されていない場合は中央
+	- EscParam[3] レイヤ
+	- EscParam[4] 明度
+	- EscParam[5] α値
+
+	@see ESC_EOprC(), AVG_SetChar()
+*/
 static void ESC_EOprCW( void )
 {
 	
@@ -2812,6 +3109,14 @@ static void ESC_EOprCW( void )
 
 	EXEC_AddPC( EscCnt );
 }
+
+/**
+	立ち絵を即座に表示解除する簡易命令.
+	ESC_EOprCR param0, 3, -1 と等価。
+	- EscParam[0] キャラ
+	
+	@see ESC_EOprCR(), @see AVG_ResetChar()
+*/
 static void ESC_EOprCRW( void )
 {
 	
@@ -3182,15 +3487,6 @@ static void ESC_EOprDebugBox( void )
 	EXEC_AddPC( EscCnt );
 }
 
-
-
-
-
-
-
-
-
-
 int ESC_OprControl( int opr )
 {
 	int	i=ESC_LOADSCRIPT;
@@ -3496,12 +3792,12 @@ int ESC_OprControl( int opr )
 		case ESC_SETMAPEVENT:		ESC_EOprSetMapEvent();		break;
 		case ESC_VIB:				ESC_EOprVIB();		break;
 
-		case ESC_VIEWCALENDER:		ESC_EOprViewCalender();		break;	
+		case ESC_VIEWCALENDER:		ESC_EOprViewCalender();		break;	// カレンダーを表示
 
-		case ESC_SETSAKURA:			ESC_EOprSetSakura();		break;	
-		case ESC_STOPSAKURA:		ESC_EOprStopSakura();		break;	
+		case ESC_SETSAKURA:			ESC_EOprSetSakura();		break;	// 桜吹雪を表示
+		case ESC_STOPSAKURA:		ESC_EOprStopSakura();		break;	// 桜吹雪を停止
 
-		case ESC_SKIPDATE:			ESC_EOprSkipDate();		break;	
+		case ESC_SKIPDATE:			ESC_EOprSkipDate();		break;	// 日時を設定
 			
 
 
@@ -3614,7 +3910,7 @@ static BOOL CALLBACK ScriptDialogProc( HWND hwnd, UINT wmes, UINT wparam, LONG l
 #include <mm_std.h>
 #include <comp_pac.h>
 
-static char	*PackScriptDir=NULL;
+static char	*PackScriptDir=NULL; ///< スクリプトデータパッケージのあるディレクトリ名
 
 void EXEC_SetPackDir( char *pac_dir )
 {
@@ -3654,18 +3950,11 @@ char LangOprList[64][32] =
 int			RunLangBlockNo = -1;
 int			PrevRunLangBlockNo = -1;
 
-
-
-
-
-
-
 BOOL EXEC_ReadLang( char *filename, EXEC_DATA *scr )
 {
 	SCRIPT_HEADER	*header;
 	int				i, size;
 	char			*buf=NULL;
-	
 	
 	size = PAC_LoadFile( PackScriptDir, filename, &buf );
 	if(size==0){
@@ -3680,7 +3969,6 @@ BOOL EXEC_ReadLang( char *filename, EXEC_DATA *scr )
 		return FALSE;
 	}
 
-	
 	size = header->Fsize - sizeof( SCRIPT_HEADER );		
 
 	GFree(scr->LangBuf);
@@ -3689,12 +3977,10 @@ BOOL EXEC_ReadLang( char *filename, EXEC_DATA *scr )
 
 	CopyMemory( scr->LangBuf, buf + sizeof(SCRIPT_HEADER), size );
 
-	
 	for( i=0; i<SCRIPT_BLOCK_MAX; i++ ) {
 		scr->BlockAddres[i] = header->BlockAddres[i];
 	}
 
-	
 	scr->BusyFlg  = SCCODE_NOOPR;								
 
 	wsprintf( NowLangFileName, "%s", filename );
@@ -3704,16 +3990,9 @@ BOOL EXEC_ReadLang( char *filename, EXEC_DATA *scr )
 	return( TRUE );
 }
 
-
-
-
-
-
-
 BOOL EXEC_StartLang( EXEC_DATA *scr, int scr_no )
 {
 	int		i;
-	
 	
 	if( scr->BlockAddres[ scr_no ] == 0 ) {
 		return( FALSE );
@@ -3723,7 +4002,6 @@ BOOL EXEC_StartLang( EXEC_DATA *scr, int scr_no )
 		return( FALSE );
 	}
 
-	
 	scr->BusyFlg = SCCODE_RUN;									
 	scr->sp      = 0;											
 	scr->pc      = scr->BlockAddres[ scr_no ] - 1;				
@@ -3735,18 +4013,12 @@ BOOL EXEC_StartLang( EXEC_DATA *scr, int scr_no )
 	return( TRUE );
 }
 
-
-
-
-
-
 void EXEC_ReleaseLang( EXEC_DATA *scr )
 {
 	int	i;
 	
 	GFree( scr->LangBuf );
 
-	
 	scr->BusyFlg   = SCCODE_NOOPR;
 
 	scr->pc        = 0;
@@ -3763,14 +4035,8 @@ void EXEC_ReleaseLang( EXEC_DATA *scr )
 	RunLangBlockNo = -1;
 }
 
-
-
-
-
-
 void EXEC_EndLang( EXEC_DATA *scr, int init )
 {
-	
 	scr->BusyFlg   = SCCODE_NOOPR;
 	scr->pc        = 0;
 
@@ -3780,11 +4046,6 @@ void EXEC_EndLang( EXEC_DATA *scr, int init )
 	}
 	RunLangBlockNo = -1;
 }
-
-
-
-
-
 
 short EXEC_GetShortValue( char *buf )
 {
@@ -3800,11 +4061,6 @@ short EXEC_GetShortValue( char *buf )
 	return(	val.word );
 }
 
-
-
-
-
-
 long EXEC_GetLongValue( char *buf )
 {
 	long	i;
@@ -3818,12 +4074,6 @@ long EXEC_GetLongValue( char *buf )
 
 	return(	val.dword );
 }
-
-
-
-
-
-
 
 int EXEC_GetValue( char *buf, int mode )
 {
@@ -3840,126 +4090,112 @@ int EXEC_GetValue( char *buf, int mode )
 
 
 
-
+/**
+	指定フレーム経過まで処理待ち.
+*/
 static void EXEC_LangWait( void )
 {
-	
 	if( EXEC_LangInfo->WaitCounter < EXEC_LangInfo->WaitEnd )	EXEC_LangInfo->WaitCounter++;
 	else														EXEC_LangInfo->BusyFlg = SCCODE_RUN;
 }
 
-
-
-
-
-
+/**
+	指定ミリ秒まで処理待ち.
+*/
 static void EXEC_LangTWait( void )
 {
-	
 	if( timeGetTime() >= EXEC_LangInfo->TWaitEnd )	EXEC_LangInfo->BusyFlg = SCCODE_RUN;
 }
 
-
-
-
-
-
+/**
+	スタックに値をプッシュ.
+	@param num 値
+*/
 static void EXEC_SpPush( int num )
 {
-	
 	EXEC_LangInfo->sp_buf[ EXEC_LangInfo->sp ] = num;
 	EXEC_LangInfo->sp++;
 }
 
-
-
-
-
-
+/**
+	スタックから値をポップ.
+	@return 値
+*/
 static int EXEC_SpPop( void )
 {
-	
 	EXEC_LangInfo->sp--;
 	return( EXEC_LangInfo->sp_buf[ EXEC_LangInfo->sp ] );
 }
 
-
-
-
-
-
+/**
+	レジスタに値を代入する命令.
+	@param mode param2 の種類
+	- param1 レジスタ番号（CHAR 値）
+	- param2 mode = 0 ならレジスタ番号（CHAR 値）、それ以外なら LONG 値
+*/
 static void EXEC_OprMov( char mode )
 {
 	int		param1, param2;
 	
-	
 	param1 = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];							
 	param2 = EXEC_GetValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ], mode );	
 	
-	
 	EXEC_LangInfo->reg[ param1 ] = param2;
-
 	
 	if( mode == 0 )	EXEC_AddPC( 4 );	
 	else			EXEC_AddPC( 7 );	
 }
 
-
-
-
-
-
+/**
+	レジスタの値を入れ替える命令.
+	- param1 レジスタ番号（CHAR 値）
+	- param2 レジスタ番号（CHAR 値）
+*/
 static void EXEC_OprSwap( void )
 {
 	int		param1, param2, work;
-
 	
 	param1 = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];		
 	param2 = EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ];		
-
 	
 	work                          = EXEC_LangInfo->reg[ param1 ];
 	EXEC_LangInfo->reg[ param1 ] = EXEC_LangInfo->reg[ param2 ];
 	EXEC_LangInfo->reg[ param2 ] = work;
 	
-	
 	EXEC_AddPC( 4 );
 }
 
-
-
-
-
-
+/**
+	レジスタに0 ≦ x ＜ 65535 の乱数を代入する命令.
+	- param1 レジスタ番号（CHAR 値）
+*/
 static void EXEC_OprRand( void )
 {
 	int		param1;
 	
-	
 	param1 = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];
 	
-	
 	EXEC_LangInfo->reg[ param1 ] = ( rand() % 65535 );
-
 	
 	EXEC_AddPC( 3 );
 }
 
-
-
-
-
-
+/**
+	条件が真なら指定アドレスにジャンプする命令.
+	@param mode param3 の種類
+	- param1 レジスタ番号（CHAR 値）
+	- param2 比較条件（CHAR 値）
+	- param3 mode = 0 ならレジスタ番号（CHAR 値）、それ以外なら LONG 値
+	- p アドレス（LONG 値）
+*/
 static void EXEC_OprIf( char mode )
 {
 	int		param1, param2, param3, p, flg;
-	
 	
 	param1 = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];							
 	param1 = EXEC_GetParam( param1 );											
 	param2 = EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ];							
 	param3 = EXEC_GetValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 4 ], mode );	
-
 	
 	switch( param2 ) {
 		case CALL_SMALL:	flg = ( param1 <  param3 ) ? 1 : 0;		break;		
@@ -3970,7 +4206,6 @@ static void EXEC_OprIf( char mode )
 		case CALL_NEQUAL:	flg = ( param1 != param3 ) ? 1 : 0;		break;		
 	}
 
-	
 	if( flg ){	
 		p = ( mode == 0 ) ? 5 : 8;
 		EXEC_LangInfo->pc = EXEC_GetLongValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + p ] );
@@ -3980,23 +4215,25 @@ static void EXEC_OprIf( char mode )
 	}
 }
 
-
-
-
-
-
+/**
+	条件の真偽によって指定アドレスにジャンプする命令.
+	@param mode param3 の種類
+	- param1 レジスタ番号（CHAR 値）
+	- param2 比較条件（CHAR 値）
+	- param3 mode = 0 ならレジスタ番号（CHAR 値）、それ以外なら LONG 値
+	- p 真の場合のアドレス（LONG 値）
+	- p 偽の場合のアドレス（LONG 値）
+*/
 static void EXEC_OprIfElse( char mode )
 {
 	int		param1, param2, param3, p;
 	char	flg;
-	
 	
 	param1 = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];							
 	param1 = EXEC_GetParam( param1 );											
 	param2 = EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ];							
 	param3 = EXEC_GetValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 4 ], mode );	
 
-	
 	switch( param2 ) {
 		case CALL_SMALL:	flg = ( param1 <  param3 ) ? 1 : 0;		break;		
 		case CALL_ESMALL:	flg = ( param1 <= param3 ) ? 1 : 0;		break;		
@@ -4006,25 +4243,23 @@ static void EXEC_OprIfElse( char mode )
 		case CALL_NEQUAL:	flg = ( param1 != param3 ) ? 1 : 0;		break;		
 	}
 
-	
 	if( flg )	p = ( mode == 0 ) ? 5 : 8;
 	else		p = (( mode == 0 ) ? 5 : 8) + 4;
 	EXEC_LangInfo->pc = EXEC_GetLongValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + p ] );
 }
 
-
-
-
-
-
+/**
+	レジスタ値が正ならばデクリメントし、指定アドレスにジャンプする命令.
+	後置型ループ（C の do {} while( reg[param1]-- > 0 ); ）に相当すると見られる。
+	- param1 レジスタ番号
+	- アドレス（LONG 値）
+*/
 static void EXEC_OprLoop( void )
 {
 	int		param1;
 
-	
 	param1 = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];	
 
-	
 	if( EXEC_LangInfo->reg[ param1 ] > 0 ) {			
 		EXEC_LangInfo->reg[ param1 ]--;
 		EXEC_LangInfo->pc = EXEC_GetLongValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ] );
@@ -4033,50 +4268,46 @@ static void EXEC_OprLoop( void )
 	}
 }
 
-
-
-
-
-
+/**
+	指定アドレスにジャンプする命令.
+	- param1 アドレス（LONG 値）
+*/
 static void EXEC_OprGoto( void  )
 {
-	
 	EXEC_LangInfo->pc = EXEC_GetLongValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ] );
 }
 
-
-
-
-
-
+/**
+	1引数算術演算命令群の処理.
+	@param opr 命令コード
+	- param1 レジスタ番号（CHAR 値）
+*/
 static void EXEC_OprArithmetic1( int opr )
 {
 	int		param1;
-
 	
 	param1 = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];		
-
 	
 	switch( opr ) {
-		case OPRS_INC:	EXEC_LangInfo->reg[ param1 ] ++;								break;
-		case OPRS_DEC:	EXEC_LangInfo->reg[ param1 ] --;								break;
-		case OPRS_NOT:	EXEC_LangInfo->reg[ param1 ] = ~EXEC_LangInfo->reg[ param1 ];	break;
-		case OPRS_NEG:	EXEC_LangInfo->reg[ param1 ] *= -1;							break;
+		case OPRS_INC:	EXEC_LangInfo->reg[ param1 ] ++;								break; // インクリメント
+		case OPRS_DEC:	EXEC_LangInfo->reg[ param1 ] --;								break; // デクリメント
+		case OPRS_NOT:	EXEC_LangInfo->reg[ param1 ] = ~EXEC_LangInfo->reg[ param1 ];	break; // ビット反転
+		case OPRS_NEG:	EXEC_LangInfo->reg[ param1 ] *= -1;							break; // 正負反転
 	}
-
 	
 	EXEC_AddPC( 3 );
 }
 
-
-
-
-
-
+/**
+	2引数算術演算命令群の処理.
+	@param opr 命令コード
+	- param1 結果を格納するレジスタ番号（CHAR 値）
+	- val1 被演算値のレジスタ番号（CHAR 値）= param1 
+	- val2 レジスタ値または LONG 値
+*/
 static void EXEC_OprArithmetic2( int opr )
 {
 	int		param1, val1, val2 = 0, ans = 0, mode;
-
 	
 	param1 = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];		
 	
@@ -4084,61 +4315,58 @@ static void EXEC_OprArithmetic2( int opr )
 	switch( opr ) {
 		case OPRS_ADDR:	case OPRS_SUBR:	case OPRS_MULR:	case OPRS_DIVR:
 		case OPRS_MODR:	case OPRS_ANDR:	case OPRS_ORR:	case OPRS_XORR:
-						val2 = EXEC_GetValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ], 0 );
+						val2 = EXEC_GetValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ], 0 ); // レジスタ値で演算
 						mode = 0;
 						break;
 		case OPRS_ADDV:	case OPRS_SUBV:	case OPRS_MULV:	case OPRS_DIVV:
 		case OPRS_MODV:	case OPRS_ANDV:	case OPRS_ORV:	case OPRS_XORV:
-						val2 = EXEC_GetValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ], 1 );
+						val2 = EXEC_GetValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ], 1 ); // LONG 値で演算
 						mode = 1;
 						break;
 	}
-
 	
 	switch( opr ) {
-		case OPRS_ADDR:	case OPRS_ADDV:	ans = val1 + val2;							break;
-		case OPRS_SUBR:	case OPRS_SUBV:	ans = val1 - val2;							break;
-		case OPRS_MULR:	case OPRS_MULV:	ans = val1 * val2;							break;
-		case OPRS_DIVR:	case OPRS_DIVV:	ans = ( val2 != 0 ) ? ( val1 / val2 ) : 0;	break;
-		case OPRS_MODR:	case OPRS_MODV:	ans = ( val2 != 0 ) ? ( val1 % val2 ) : 0;	break;
-		case OPRS_ANDR:	case OPRS_ANDV:	ans = val1 & val2;							break;
-		case OPRS_ORR:	case OPRS_ORV:	ans = val1 | val2;							break;
-		case OPRS_XORR:	case OPRS_XORV:	ans = val1 ^ val2;							break;
+		case OPRS_ADDR:	case OPRS_ADDV:	ans = val1 + val2;							break; // 加算
+		case OPRS_SUBR:	case OPRS_SUBV:	ans = val1 - val2;							break; // 減算
+		case OPRS_MULR:	case OPRS_MULV:	ans = val1 * val2;							break; // 乗算
+		case OPRS_DIVR:	case OPRS_DIVV:	ans = ( val2 != 0 ) ? ( val1 / val2 ) : 0;	break; // 除算
+		case OPRS_MODR:	case OPRS_MODV:	ans = ( val2 != 0 ) ? ( val1 % val2 ) : 0;	break; // 剰余算
+		case OPRS_ANDR:	case OPRS_ANDV:	ans = val1 & val2;							break; // ビット論理積
+		case OPRS_ORR:	case OPRS_ORV:	ans = val1 | val2;							break; // ビット論理和
+		case OPRS_XORR:	case OPRS_XORV:	ans = val1 ^ val2;							break; // ビット排他的論理和
 	}
 	EXEC_LangInfo->reg[ param1 ] = ans;
-
 	
 	EXEC_AddPC( ( mode == 0 ) ? 4 : 7 );
 }
 
-
-
-
-
-
+/**
+	逆ポーランド計算を行う命令.
+	- reg 結果を格納するレジスタ番号（CHAR 値）
+	- size 以降の計算式データ長（SHORT 値）
+*/
 static void EXEC_OprCalc( void )
 {
 	short	size;
 	int		reg, bp, sbp, s1, s2, ans, cnt;
+	// 計算式要素データ
 	struct CALC{
-		char	opr;
-		long	data;
+		char	opr; // データ内容
+		long	data; // データ
 	} Calc[ 250 ];
-	
 	
 	reg  = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];
 	size = EXEC_GetShortValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 3 ] );
 
-	
 	bp = sbp = 0;
 	while( 1 ) {
 		if( sbp >= size ) { break; }
-		if( EXEC_LangBuf[ EXEC_LangInfo->pc + 5 + sbp ] == FACT_VAL ) {
+		if( EXEC_LangBuf[ EXEC_LangInfo->pc + 5 + sbp ] == FACT_VAL ) { // LONG 値
 			Calc[ bp ].opr = EXEC_LangBuf[ EXEC_LangInfo->pc + 5 + sbp ];
 			Calc[ bp ].data = EXEC_GetLongValue( &EXEC_LangBuf[ EXEC_LangInfo->pc+3+sbp+1 ] );
 			bp++;	sbp += 5;
 		}
-		else {
+		else { // レジスタ番号、演算子（CHAR 値）
 			Calc[ bp ].opr = EXEC_LangBuf[ EXEC_LangInfo->pc + 5 + sbp ];
 			Calc[ bp ].data = EXEC_LangBuf[ EXEC_LangInfo->pc + 5 + sbp + 1 ];
 			bp++;	sbp += 2;
@@ -4146,20 +4374,19 @@ static void EXEC_OprCalc( void )
 	}
 	Calc[ bp ].opr = FACT_END;
 
-	
 	bp = 0;
 	while( Calc[ bp ].opr != FACT_END ) {
 		if( Calc[ bp ].opr != FACT_CLC ) { bp++; continue; }
-		if( Calc[ bp - 2 ].opr == FACT_VAL ) { s1 = Calc[ bp - 2 ].data;                        }
-		else                                  { s1 = EXEC_LangInfo->reg[ Calc[ bp - 2 ].data ]; }
-		if( Calc[ bp - 1 ].opr == FACT_VAL ) { s2 = Calc[ bp - 1 ].data;                        }
-		else                                  { s2 = EXEC_LangInfo->reg[ Calc[ bp - 2 ].data ]; }
+		if( Calc[ bp - 2 ].opr == FACT_VAL ) { s1 = Calc[ bp - 2 ].data;                        } // LONG 値
+		else                                  { s1 = EXEC_LangInfo->reg[ Calc[ bp - 2 ].data ]; } // レジスタ値
+		if( Calc[ bp - 1 ].opr == FACT_VAL ) { s2 = Calc[ bp - 1 ].data;                        } // LONG 値
+		else                                  { s2 = EXEC_LangInfo->reg[ Calc[ bp - 2 ].data ]; } // レジスタ値
 		switch( Calc[ bp ].data ) {
-			case CALL_ADD:	ans = s1 + s2;							break;
-			case CALL_SUB:	ans = s1 - s2;							break;
-			case CALL_MUL:	ans = s1 * s2;							break;
-			case CALL_DIV:	ans = ( s2 != 0 ) ? ( s1 / s2 ) : 0;	break;
-			case CALL_MOD:	ans = ( s2 != 0 ) ? ( s1 % s2 ) : 0;	break;
+			case CALL_ADD:	ans = s1 + s2;							break; // 加算
+			case CALL_SUB:	ans = s1 - s2;							break; // 減算
+			case CALL_MUL:	ans = s1 * s2;							break; // 乗算
+			case CALL_DIV:	ans = ( s2 != 0 ) ? ( s1 / s2 ) : 0;	break; // 除算
+			case CALL_MOD:	ans = ( s2 != 0 ) ? ( s1 % s2 ) : 0;	break; // 剰余算
 		}
 		Calc[ bp ].opr = FACT_VAL;
 		Calc[ bp ].data = ans;
@@ -4172,21 +4399,24 @@ static void EXEC_OprCalc( void )
 	}
 	EXEC_SetParam( reg, Calc[ 0 ].data );
 
-	
 	EXEC_AddPC( 5 + size );
 }
 
-
-
-
-
-
+/**
+	全レジスタをスタックにプッシュ.
+	@see EXEC_SpPush()
+*/
 static void EXEC_Pusha( void )
 {
 	int		i;
 	
 	for( i=0; i<REGISTER_MAX; i++ ) { EXEC_SpPush( EXEC_LangInfo->reg[ i ] ); }
 }
+
+/**
+	全レジスタをスタックにプッシュする命令.
+	@see EXEC_Pusha()
+*/
 static void EXEC_OprPusha( void )
 {
 	EXEC_Pusha();
@@ -4194,18 +4424,21 @@ static void EXEC_OprPusha( void )
 	EXEC_AddPC( 2 );
 }
 
-
-
-
-
-
-
+/**
+	全レジスタにスタックからポップ.
+	@see EXEC_SpPop()
+*/
 static void EXEC_Popa( void )
 {
 	int		i;
 	
 	for( i=REGISTER_MAX-1; i>=0; i-- ) { EXEC_LangInfo->reg[ i ] = EXEC_SpPop(); }
 }
+
+/**
+	全レジスタにスタックからポップする命令.
+	@see EXEC_Popa()
+*/
 static void EXEC_OprPopa( void )
 {
 	EXEC_Popa();
@@ -4213,19 +4446,19 @@ static void EXEC_OprPopa( void )
 	EXEC_AddPC( 2 );
 }
 
+/**
+	指定スクリプトブロックをサブルーチンとしてコールする命令.
+	次の命令のアドレスをスタックにプッシュし、指定スクリプトブロックアドレスにジャンプする。
+	- callno スクリプトブロック番号
 
-
-
-
-
+	@see EXEC_OprRet()
+*/
 static void EXEC_OprCall( void )
 {
 	int			callno;
 	DWORD		addres;
 
-	
 	EXEC_SpPush( EXEC_LangInfo->pc + 3 );
-	
 	
 	callno = (char)EXEC_LangBuf[ EXEC_LangInfo->pc+2 ];
 	if( EXEC_LangInfo->BlockAddres[ callno ] == 0 ){
@@ -4236,15 +4469,14 @@ static void EXEC_OprCall( void )
 	PrevRunLangBlockNo = RunLangBlockNo;
 	RunLangBlockNo = callno;
 
-	
 	EXEC_LangInfo->pc = addres;
 }
+
 void EXEC_OprCallFunc( int call_no, int next_pc, long *num )
 {
 	DWORD	addres;
 	int		i;
 
-	
 	EXEC_SpPush( EXEC_LangInfo->pc + next_pc );
 	
 	for( i=0; i<14 ; i++ ){
@@ -4259,60 +4491,49 @@ void EXEC_OprCallFunc( int call_no, int next_pc, long *num )
 	PrevRunLangBlockNo = RunLangBlockNo;
 	RunLangBlockNo = call_no;
 
-	
 	EXEC_LangInfo->pc = addres;
 }
 
-
-
-
-
-
-
+/**
+	スクリプトブロックのサブルーチンから復帰する命令.
+	プログラムカウンタにスタックからアドレスをポップする。
+	@see EXEC_OprCall()
+*/
 static void EXEC_OprRet( void )
 {
-	
 	EXEC_LangInfo->pc = EXEC_SpPop();
 	RunLangBlockNo = PrevRunLangBlockNo;
 }
 
-
-
-
-
-
+/**
+	フレーム数単位でウェイトをかける.
+	- param1 フレーム数（SHORT 値）
+*/
 static void EXEC_OprWait( void )
 {
 	int		param1;
 	
-	
 	param1 = EXEC_GetShortValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ] );		
-	
 	
 	EXEC_LangInfo->WaitCounter = 0;					
 	EXEC_LangInfo->WaitEnd     = param1;				
 	EXEC_LangInfo->BusyFlg     = SCCODE_WAIT_WAIT;		
 	
-	
 	EXEC_AddPC( 4 );
 }
 
-
-
-
-
-
+/**
+	ミリ秒単位でウェイトをかける.
+	- param1 ミリ秒（SHORT 値）
+*/
 static void EXEC_OprTWait( void )
 {
 	int		param1;
 	
-	
 	param1 = EXEC_GetShortValue( &EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ] );		
-	
 	
 	EXEC_LangInfo->TWaitEnd   = timeGetTime()+(DWORD)param1;	
  	EXEC_LangInfo->BusyFlg    = SCCODE_WAIT_TWAIT;				
-
 	
 	EXEC_AddPC( 4 );
 }
@@ -4338,12 +4559,10 @@ int EXEC_SLoad( char *str )
 	wsprintf( src, "sdt\\%s", str );
 	CopyFile( src, dst, TRUE);
 
-
 	wsprintf( buf, "%s\\%s", PackScriptDir, str );
 	if( PAC_CheckFile( PackScriptDir, str ) ){
 
 		EXEC_ReleaseLang( EXEC_LangInfo );
-		
 		
 		EXEC_ReadLang( str, EXEC_LangInfo );
 
@@ -4359,16 +4578,18 @@ int EXEC_SLoad( char *str )
 	}
 }
 
+/**
+	スクリプトファイルを読み込んで実行する命令.
+	- len ファイル名長（CHAR 値）
+	- str ファイル名文字列
 
-
-
-
+	@see EXEC_SLoad()
+}*/
 void EXEC_OprSLoad( void )
 {
 	int		i, len;
 	char	str[256];
 
-	
 	len = EXEC_LangBuf[ EXEC_LangInfo->pc + 2 ];						
 	for( i=0; i<len; i++ ) { str[ i ] = EXEC_LangBuf[ EXEC_LangInfo->pc + 3 + i ]; }
 	str[i] = '\0';	str[i+1] = '\0';
@@ -4376,73 +4597,72 @@ void EXEC_OprSLoad( void )
 	EXEC_SLoad( str );
 }
 
-
-
-
-
-
+/**
+	基本的な命令を実行.
+	@param opr 命令コード
+	@return
+*/
 static BOOL EXEC_OprControl( int opr )
 {
 	BOOL	ret;
 
-	
 	switch( opr ) {
-		case OPRS_END:		EXEC_EndLang( EXEC_LangInfo,OFF);	ret = FALSE;	break;	
-		case OPRS_MOVR:		EXEC_OprMov( 0 );					ret = TRUE;		break;	
-		case OPRS_MOVV:		EXEC_OprMov( 1 );					ret = TRUE;		break;	
-		case OPRS_SWAP:		EXEC_OprSwap();						ret = TRUE;		break;	
-		case OPRS_RAND:		EXEC_OprRand();						ret = TRUE;		break;	
-		case OPRS_IFR:		EXEC_OprIf( 0 );						ret = TRUE;		break;	
-		case OPRS_IFV:		EXEC_OprIf( 1 );						ret = TRUE;		break;	
-		case OPRS_IFELSER:	EXEC_OprIfElse( 0 );					ret = TRUE;		break;	
-		case OPRS_IFELSEV:	EXEC_OprIfElse( 1 );					ret = TRUE;		break;	
-		case OPRS_LOOP:		EXEC_OprLoop();						ret = TRUE;		break;	
-		case OPRS_GOTO:		EXEC_OprGoto();						ret = TRUE;		break;	
-
-		case OPRS_INC:     																
-		case OPRS_DEC:     																
-		case OPRS_NOT:     																
-		case OPRS_NEG:		EXEC_OprArithmetic1( opr );			ret = TRUE;		break;	
-
-		case OPRS_ADDR:	case OPRS_ADDV:													
-		case OPRS_SUBR:	case OPRS_SUBV:													
-		case OPRS_MULR:	case OPRS_MULV:													
-		case OPRS_DIVR:	case OPRS_DIVV:													
-		case OPRS_MODR:	case OPRS_MODV:													
-		case OPRS_ANDR:	case OPRS_ANDV:													
-		case OPRS_ORR:	case OPRS_ORV:													
-		case OPRS_XORR:	case OPRS_XORV:													
+		case OPRS_END:		EXEC_EndLang( EXEC_LangInfo,OFF);	ret = FALSE;	break;	// スクリプト実行を終了
+		case OPRS_MOVR:		EXEC_OprMov( 0 );					ret = TRUE;		break;	// レジスタ値をレジスタに代入
+		case OPRS_MOVV:		EXEC_OprMov( 1 );					ret = TRUE;		break;	// 値をレジスタに代入
+		case OPRS_SWAP:		EXEC_OprSwap();						ret = TRUE;		break;	// レジスタ値を入れ替え
+		case OPRS_RAND:		EXEC_OprRand();						ret = TRUE;		break;	// 乱数をレジスタに代入
+		case OPRS_IFR:		EXEC_OprIf( 0 );						ret = TRUE;		break;	// レジスタ値とレジスタ値の比較結果が真ならジャンプ
+		case OPRS_IFV:		EXEC_OprIf( 1 );						ret = TRUE;		break;	// レジスタ値と値の比較結果が真ならジャンプ
+		case OPRS_IFELSER:	EXEC_OprIfElse( 0 );					ret = TRUE;		break;	// レジスタ値とレジスタ値の比較結果で分岐
+		case OPRS_IFELSEV:	EXEC_OprIfElse( 1 );					ret = TRUE;		break;	// レジスタ値と値の比較結果で分岐
+		case OPRS_LOOP:		EXEC_OprLoop();						ret = TRUE;		break;	// レジスタが正ならデクリメントして指定アドレスにジャンプ
+		case OPRS_GOTO:		EXEC_OprGoto();						ret = TRUE;		break;	// 指定アドレスにジャンプ
+		// 1引数算術演算
+		case OPRS_INC:     																// インクリメント
+		case OPRS_DEC:     																// デクリメント
+		case OPRS_NOT:     																// ビット反転
+		case OPRS_NEG:		EXEC_OprArithmetic1( opr );			ret = TRUE;		break;	// 正負反転
+		// 2引数算術演算
+		case OPRS_ADDR:	case OPRS_ADDV:													// 加算
+		case OPRS_SUBR:	case OPRS_SUBV:													// 減算
+		case OPRS_MULR:	case OPRS_MULV:													// 乗算
+		case OPRS_DIVR:	case OPRS_DIVV:													// 除算
+		case OPRS_MODR:	case OPRS_MODV:													// 剰余算
+		case OPRS_ANDR:	case OPRS_ANDV:													// ビット論理積
+		case OPRS_ORR:	case OPRS_ORV:													// ビット論理和
+		case OPRS_XORR:	case OPRS_XORV:													// ビット排他的論理和
 							EXEC_OprArithmetic2( opr );			ret = TRUE;		break;	
-		case OPRS_CALC:		EXEC_OprCalc();						ret = TRUE;		break;	
-		case OPRS_PUSHA:	EXEC_OprPusha();						ret = TRUE;		break;	
-		case OPRS_POPA:		EXEC_OprPopa();						ret = TRUE;		break;	
-		case OPRS_CALL:		EXEC_OprCall();						ret = TRUE;		break;	
-		case OPRS_RET:		EXEC_OprRet();						ret = TRUE;		break;	
-		case OPRS_WAIT:		EXEC_OprWait();						ret = FALSE;	break;	
-		case OPRS_TWAIT:	EXEC_OprTWait();						ret = FALSE;	break;	
+		case OPRS_CALC:		EXEC_OprCalc();						ret = TRUE;		break;	// 逆ポーランド計算
+		case OPRS_PUSHA:	EXEC_OprPusha();						ret = TRUE;		break;	// 全レジスタをスタックにプッシュ
+		case OPRS_POPA:		EXEC_OprPopa();						ret = TRUE;		break;	// 全レジスタにスタックからポップ
+		case OPRS_CALL:		EXEC_OprCall();						ret = TRUE;		break;	// スクリプトブロックをサブルーチンとしてコール
+		case OPRS_RET:		EXEC_OprRet();						ret = TRUE;		break;	// スクリプトブロックのサブルーチンから復帰
+		case OPRS_WAIT:		EXEC_OprWait();						ret = FALSE;	break;	// フレーム数単位でウェイト
+		case OPRS_TWAIT:	EXEC_OprTWait();						ret = FALSE;	break;	// ミリ秒単位でウェイト
 		case OPRS_RUN:		EXEC_OprRun();						ret = FALSE;	break;	
-		case OPRS_SLOAD:	EXEC_OprSLoad();						ret = FALSE;	break;	
+		case OPRS_SLOAD:	EXEC_OprSLoad();						ret = FALSE;	break;	// スクリプトファイルを読み込んで実行
 	}
 
 	return(	ret );
 }
 
+/**
+	命令コードを取得して基本命令およびイベント命令を実行.
+	@param mode
+	@return
+	- opr 命令コード（WORD 値）
 
-
-
-
-
+	@see EXEC_OprControl()
+	@see ESC_OprControl()
+*/
 static BOOL EXEC_CallOprControl( int mode )
 {
 	int		opr;
 	BOOL	ret=0;
 	
-	
 	if(EXEC_LangBuf){
 		opr = *(WORD*)&EXEC_LangBuf[ EXEC_LangInfo->pc ];							
-
-
-
 
 		if( opr < OPRS_OPREND ){	ret = EXEC_OprControl( opr );	}			
 		else{																
@@ -4455,39 +4675,32 @@ static BOOL EXEC_CallOprControl( int mode )
 	return( ret );
 }
 
-
-
-
-
-
+/**
+	スクリプト処理タスク.
+	動作状態フラグに合わせて、ウェイト処理を行い、
+	ウェイトが終了していれば命令実行を行う。
+	@param mode
+	@return 動作状態フラグ
+	@see EXEC_CallOprControl()
+*/
 static int EXEC_ControlTask( int mode )
 {
-	
 	if( EXEC_LangInfo->BusyFlg == SCCODE_WAIT_TWAIT )		EXEC_LangTWait();
 	if( EXEC_LangInfo->BusyFlg == SCCODE_WAIT_WAIT )		EXEC_LangWait();
 
-	
 	if( EXEC_LangInfo->BusyFlg == SCCODE_RUN ){			
 		while( EXEC_CallOprControl( mode ) );
 	}
 
-	
 	return( EXEC_LangInfo->BusyFlg );
 }
-
-
-
-
-
 
 int EXEC_ControlLang( EXEC_DATA *scr )
 {
 	int		ret;
 
-	
 	EXEC_LangBuf  = (char *)scr->LangBuf;
 	EXEC_LangInfo = scr;
-	
 	
 	ret = EXEC_ControlTask( SCRMODE_EVENT );		
 

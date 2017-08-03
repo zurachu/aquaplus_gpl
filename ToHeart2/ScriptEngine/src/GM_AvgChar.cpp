@@ -1,3 +1,6 @@
+/** @file
+	AVG 立ち絵関連の実装
+*/
 
 #include "mm_std.h"
 #include "main.h"
@@ -16,57 +19,64 @@
 #include "GM_title.h"
 
 
+// 立ち絵状態
 #define CHAR_COND_NOMAL		0
 #define CHAR_COND_IN		1
 #define CHAR_COND_OUT		2
-#define CHAR_COND_POSE		3	
-#define CHAR_COND_LOCATE	4	
-#define CHAR_COND_BRIGHT	5	
-#define CHAR_COND_ALPHA		6	
+#define CHAR_COND_POSE		3	///< ポーズ変更状態
+#define CHAR_COND_LOCATE	4	///< 位置変更状態
+#define CHAR_COND_BRIGHT	5	///< フェード変更状態
+#define CHAR_COND_ALPHA		6	///< α値変更状態
 #define CHAR_COND_WAIT		7	
 
 #define CHAR_TYPE_DIRECT	-1	
 #define CHAR_TYPE_CFADE		0	
 #define CHAR_TYPE_MOVE		1	
 #define CHAR_TYPE_WAIT		3	
-#define CHAR_TYPE_WAIT2		4	
+#define CHAR_TYPE_WAIT2		4	///< リソース解放待ち？
 #define CHAR_TYPE_WAVE		5	
 
 
+/// 位置に対する、画面中心からのx座標差分テーブル
 static int	CharLocateTable[9]={ -160*80/64, 0, 160*80/64, -192*80/64, 192*80/64, -300*80/64, 300*80/64, -400*80/64, 400*80/64 };
 #define CHAR_DY	0
 
 #define CHAR_LOCATE(L)		(CharLocateTable[L])	
 
+/// 立ち絵情報構造体
 typedef struct{
-	int		flag;	
+	int		flag;	///< 登録済みフラグ
 	int		grp;	
-	int		cond;	
+	int		cond;	///< 状態. CHAR_CONT_? 定数が入る
 	int		type;	
-	int		cno;	
+	int		cno;	///< キャラ番号
 	int		disp;	
 
-	int		cnt;	
-	int		max;	
+	int		cnt;	///< 処理フレームカウント
+	int		max;	///< 処理終了フレーム
 
-	int		pose;	
-	int		loc1;	
-	int		loc2;	
-	int		layer;	
+	int		pose;	///< ポーズ
+	int		loc1;	///< 位置
+	int		loc2;	///< 前の位置
+	int		layer;	///< レイヤ
 
-	int		fade1;	
-	int		fade2;	
+	int		fade1;	///< 明度
+	int		fade2;	///< 前の明度
 
-	int		alph1;	
-	int		alph2;	
+	int		alph1;	///< α値
+	int		alph2;	///< 前のα値
 
 	int		cut_mode;	
 }CHAR_STRUCT;
-CHAR_STRUCT		CharStruct[MAX_CHAR];
+CHAR_STRUCT		CharStruct[MAX_CHAR]; ///< 立ち絵情報
 
 
 
 
+/**
+	立ち絵情報配列から指定キャラが登録されている要素の添字を取得.
+	@param char_no キャラ
+*/
 static int GetCharIndex( int char_no )
 {
 	int	i;
@@ -77,6 +87,10 @@ static int GetCharIndex( int char_no )
 	}
 	return i; 
 }
+
+/**
+	立ち絵情報配列からキャラ未登録の要素のうち最も若い添字を取得.
+*/
 static int GetSpaceIndex( void )
 {
 	int	i;

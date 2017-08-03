@@ -1,3 +1,6 @@
+/** @file
+	AVG 関連全般の定義
+*/
 
 #ifndef	AVG_H_
 #define AVG_H_
@@ -419,9 +422,33 @@ extern void AVG_SetVoumeMusic( int pno, int vol, int fade );
 extern void AVG_SetDirectVoumeMusicAll( int bgm_vol );
 
 
+/**
+	BGM を再生.
+	@param mus_no BGM 番号
+	@param fade フェード時間
+	@param loop ループ再生フラグ
+	@param vol 音量
+	@param change 同じ BGM 再生中でも先頭から再生するか
+	@see AVG_PlayBGMEx()
+*/
 extern void AVG_PlayBGM( int mus_no, int fade, int loop, int vol, int change  );
+
 extern void AVG_PlayBGMEx( int mus_no, int fade, int loop, int vol, int change, int goin );
+
+/**
+	BGM を停止.
+	@param fade フェード時間
+	@retval 1 （常に）
+	@see AVG_StopMusic()
+*/
 extern int AVG_StopBGM( int fade );
+
+/**
+	BGM を一時停止.
+	未実装のよう。
+	@param flag
+	@see AVG_PauseMusic()
+*/
 extern int AVG_PauseBGM( int flag );
 
 extern BOOL AVG_WaitLoopBGM( void );

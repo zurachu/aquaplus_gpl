@@ -1,10 +1,15 @@
+/** @file
+	イベントスクリプトコマンド関連の定義.
+*/
+
 #ifndef _ESC_H__
 #define _ESC_H__
 
 //#ifndef ENCODE
+/// 命令リスト構造体
 typedef struct {
-	char			*opr;
-	unsigned short	code;
+	char			*opr; ///< 命令文字列
+	unsigned short	code; ///< 命令コード
 } OPRLIST;
 //#endif//ENCODE
 
@@ -34,16 +39,16 @@ enum {
 	ESC_Q,
 	ESC_F,
 //
-	ESC_C,
-	ESC_CR,
+	ESC_C, ///< 立ち絵表示登録
+	ESC_CR, ///< 立ち絵表示解除
 	
-	ESC_CP,
-	ESC_CL,
-	ESC_CY,
-	ESC_CB,
-	ESC_CA,
-	ESC_CW,
-	ESC_CRW,
+	ESC_CP, ///< 立ち絵ポーズ変更
+	ESC_CL, ///< 立ち絵位置変更
+	ESC_CY, ///< 立ち絵レイヤ変更
+	ESC_CB, ///< 立ち絵フェード変更
+	ESC_CA, ///< 立ち絵α値変更
+	ESC_CW, ///< 立ち絵即時表示登録
+	ESC_CRW, ///< 立ち絵即時表示解除
 //
 	ESC_W,
 	ESC_WR,
@@ -310,6 +315,7 @@ enum {
 };
 
 //#ifdef MODE
+/// 命令リスト
 OPRLIST EventOprList[] = {
 /*EventOprList_Start*/
 
@@ -339,15 +345,15 @@ OPRLIST EventOprList[] = {
 	{	"Q",					ESC_Q			},	//
 	{	"F",					ESC_F			},	//
 
-	{	"C",					ESC_C			},	//
-	{	"CR",					ESC_CR			},	//
-	{	"CP",					ESC_CP			},	//
-	{	"CL",					ESC_CL			},	//
-	{	"CY",					ESC_CY			},	//
-	{	"CB",					ESC_CB			},	//
-	{	"CA",					ESC_CA			},	//
-	{	"CW",					ESC_CW			},	//
-	{	"CRW",					ESC_CRW			},	//
+	{	"C",					ESC_C			},	// 立ち絵表示登録
+	{	"CR",					ESC_CR			},	// 立ち絵表示解除
+	{	"CP",					ESC_CP			},	// 立ち絵ポーズ変更
+	{	"CL",					ESC_CL			},	// 立ち絵位置変更
+	{	"CY",					ESC_CY			},	// 立ち絵レイヤ変更
+	{	"CB",					ESC_CB			},	// 立ち絵フェード変更
+	{	"CA",					ESC_CA			},	// 立ち絵α値変更
+	{	"CW",					ESC_CW			},	// 立ち絵即時表示登録
+	{	"CRW",					ESC_CRW			},	// 立ち絵即時表示解除
 
 	{	"W",					ESC_W			},	//
 	{	"WR",					ESC_WR			},	//
@@ -614,15 +620,15 @@ OPRLIST EventOprList[] = {
 };
 //#endif//MODE
 
-#define ESC_NOT		0	//　未使用
-#define ESC_ASC		1	//　直値（アスキーコード）
-#define ESC_NUM		2	//　数値orレジスタ
-#define ESC_STR		3	//　文字列
-#define ESC_STR2	4	//　ベタ文字列
-#define ESC_REG		5	//　レジスタに取得
-#define ESC_CMP		6	//　条件式
-#define ESC_ADD		7	//　ADDフラグ
-#define ESC_CNT		8	//  センテンスカウンタ
+#define ESC_NOT		0	///< 未使用
+#define ESC_ASC		1	///< 直値（アスキーコード）
+#define ESC_NUM		2	///< 数値orレジスタ
+#define ESC_STR		3	///< 文字列
+#define ESC_STR2	4	///< ベタ文字列
+#define ESC_REG		5	///< レジスタに取得
+#define ESC_CMP		6	///< 条件式
+#define ESC_ADD		7	///< ADDフラグ
+#define ESC_CNT		8	///< センテンスカウンタ
 #define ESC_VCNT	9	//  
 
 #define ESC_WAIT	0	//　
@@ -630,11 +636,11 @@ OPRLIST EventOprList[] = {
 
 //#ifndef MODE
 
-//命令構造体
+/// 命令構造体
 typedef struct{
-	char	type[15];		//引数タイプ
-	char	ret;			//ESC_NOWAIT / ESC_WAIT
-	char	default_num;	//デフォルト引数の数
+	char	type[15];		///< 引数タイプ
+	char	ret;			///< ESC_NOWAIT / ESC_WAIT
+	char	default_num;	///< デフォルト引数の数
 }ESCRIPT_OPR;
 
 ESCRIPT_OPR		EScroptOpr[] = {

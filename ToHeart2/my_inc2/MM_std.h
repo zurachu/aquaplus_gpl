@@ -1,3 +1,6 @@
+/** @file
+	共通なユーティリティー関連.
+*/
 
  
   
@@ -186,6 +189,14 @@ extern BOOL STD_WriteFile( char *fname, char *src, DWORD size );
 extern BOOL STD_ApendFile( char *fname, char *src, DWORD size );
 extern BOOL STD_ReadFilePos( char *fname, char *buf, DWORD pos, DWORD size );
 extern BOOL STD_ReadFile( char *fname, char *buf, DWORD size );
+
+/**
+	ファイルを読み込み、バッファーへコピーします.
+	ファイルは実際に存在するとは限らず、仮想ファイルを読み込む可能性があります。
+	@param fname ファイルへのパス
+	@param buf ファイルをコピーするためのバッファー
+	@return ファイルサイズ。ファイルが存在しなかった場合は0が返されます
+*/
 extern DWORD STD_ReadFileMax( char *fname, char **buf );
 extern BOOL STD_DeleteFile( char *fname );
 extern BOOL STD_CheckFile( char *fname );

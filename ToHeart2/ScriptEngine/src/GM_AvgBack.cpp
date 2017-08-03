@@ -1,3 +1,7 @@
+/** @file
+	AVG 背景関連の実装
+*/
+
 #include <mbstring.h>
 
 #include "mm_std.h"
@@ -184,6 +188,11 @@ void AVG_CloseBack( void )
 	
 }
 
+/**
+	桜の木を含むシーンについて、月日を元に変換.
+	@param scene 変換前シーン
+	@return 変換後シーン
+*/
 int AVG_SakuraSakuTH2( int scene )
 {
 	int ret = scene % 10000;
@@ -1867,27 +1876,29 @@ void AVG_SkipDate( int month, int day )
 }
 
 
+/// 記念日情報構造体
 typedef struct{
-	int	month;
-	int	day_s;
-	int	day_e;
-	int	index;
-	int	yasumi;
+	int	month; ///< 月
+	int	day_s; ///< 開始日
+	int	day_e; ///< 終了日
+	int	index; ///< インデックス
+	int	yasumi; ///< 祝日フラグ
 }KINENBI;
 
+/// 記念日テーブル
 KINENBI	KinenbiTbl[10]={
-	{3,12,12,0,0},
-	{3,20,20,1,1},
-	{3,24,24,2,0},
-	{3,25,31,3,0},
+	{3,12,12,0,0}, // このみの卒業式
+	{3,20,20,1,1}, // 春分の日
+	{3,24,24,2,0}, // 終業式
+	{3,25,31,3,0}, // 春休み3月分
 
-	{4, 1, 7,3,0},
-	{4, 8, 8,4,0},
-	{4,29,29,5,1},
+	{4, 1, 7,3,0}, // 春休み4月分
+	{4, 8, 8,4,0}, // 始業式
+	{4,29,29,5,1}, // みどりの日
 
-	{5, 3, 3,6,1},
-	{5, 4, 4,7,1},
-	{5, 5, 5,8,1}
+	{5, 3, 3,6,1}, // 憲法記念日
+	{5, 4, 4,7,1}, // 国民の休日
+	{5, 5, 5,8,1}  // こどもの日
 };
 
 BOOL AVG_SetCalender( int _month, int _days )
@@ -1902,7 +1913,7 @@ BOOL AVG_SetCalender( int _month, int _days )
 	int			_kinenbi=10;
 
 	switch(step){
-	case 0:
+	case 0: // 準備
 		if(Set_month!=0){
 			ESC_SetFlag( _MONTH, Set_month );
 			ESC_SetFlag( _DAY  , Set_day );
@@ -1964,7 +1975,7 @@ BOOL AVG_SetCalender( int _month, int _days )
 
 		step  = 1;
 		count=0;
-	case 1:
+	case 1: // フェードイン
 		count++;
 		for(i=0;i<5;i++)DSP_SetGraphParam( GRP_MAP+i, DRW_BLD(count*16) );
 		if( count>=16 ){
@@ -1972,20 +1983,20 @@ BOOL AVG_SetCalender( int _month, int _days )
 			step  = 2;
 		}
 		break;
-	case 2:
+	case 2: // 入力待ち
 		if( AVG_GetMesCut() || AVG_GetHitKey() ){
 			step  = 3;
 			count = 0;
 		}
 		break;
-	case 3:
+	case 3: // フェードアウト
 		count++;
 		for(i=0;i<5;i++)DSP_SetGraphFade( GRP_MAP+i, 128-count*8 );
 		if( count>=16 ){
 			step  = 4;
 		}
 		break;
-	case 4:
+	case 4: // リソース解放
 		for(i=0;i<5;i++)DSP_ResetGraph( GRP_MAP+i );
 		for(i=0;i<3;i++)DSP_ReleaseBmp( BMP_MAP+i );
 
@@ -1996,27 +2007,28 @@ BOOL AVG_SetCalender( int _month, int _days )
 	return ret;
 }
 
+/// 時計テーブル
 int	ViewClockTimeTable[20]={
-	 8*60+43,	
-	 9*60+ 5,	
-	 9*60+25,	
-	 9*60+35,	
-	10*60+ 0,	
-	10*60+20,	
-	10*60+30,	
-	10*60+55,	
-	11*60+15,	
-	11*60+25,	
-	11*60+50,	
-	12*60+10,	
-	12*60+35,	
-	13*60+ 0,	
-	13*60+25,	
-	13*60+45,	
-	13*60+55,	
-	14*60+20,	
-	14*60+40,	
-	14*60+50,	
+	 8*60+43,	// 08:43
+	 9*60+ 5,	// 09:05
+	 9*60+25,	// 09:25
+	 9*60+35,	// 09:35
+	10*60+ 0,	// 10:00
+	10*60+20,	// 10:20
+	10*60+30,	// 10:30
+	10*60+55,	// 11:55
+	11*60+15,	// 11:15
+	11*60+25,	// 11:25
+	11*60+50,	// 11:50
+	12*60+10,	// 12:10
+	12*60+35,	// 12:35
+	13*60+ 0,	// 13:00
+	13*60+25,	// 13:25
+	13*60+45,	// 13:45
+	13*60+55,	// 13:55
+	14*60+20,	// 14:20
+	14*60+40,	// 14:40
+	14*60+50,	// 14:50
 };
 
 
@@ -2042,13 +2054,13 @@ BOOL AVG_ViewClock( int clock )
 
 
 	switch(step){
-	case 0:
+	case 0: // 準備
 
-		if(back_clock==clock){
+		if(back_clock==clock){ // 変化無しなので終了
 			ret = TRUE;
 			break;
 		}
-		if(_youbi==6){
+		if(_youbi==6){ // 土曜日は 12:10 まで
 			clock = min(clock,11);
 		}
 		clock_count = ViewClockTimeTable[back_clock];
@@ -2066,7 +2078,7 @@ BOOL AVG_ViewClock( int clock )
 
 		count = 0;
 		step  = 1;
-	case 1:
+	case 1: // フェードイン
 		count = min(count+1,16);
 		DSP_SetGraphParam( GRP_WORK, DRW_BLD( count*16) );
 
@@ -2081,7 +2093,7 @@ BOOL AVG_ViewClock( int clock )
 			step  = 2;
 		}
 		break;
-	case 2:
+	case 2: // 針回転アニメーション
 		clock_count+=6;
 		DSP_SetSpriteNo( GRP_WORK+1, (clock_count/60%12*10 + clock_count%60/6) );
 		DSP_SetSpriteNo( GRP_WORK+2, 120 + (clock_count%60*2) );
@@ -2102,7 +2114,7 @@ BOOL AVG_ViewClock( int clock )
 		DSP_SetGraphParam( GRP_WORK+2, DRW_NML );
 
 
-		if(_youbi==6){
+		if(_youbi==6){ // 土曜日は 12:10 まで
 			clock = min(clock,11);
 		}
 		if( ViewClockTimeTable[clock] <= clock_count ){
@@ -2110,13 +2122,13 @@ BOOL AVG_ViewClock( int clock )
 			step  = 3;
 		}
 		break;
-	case 3:
+	case 3: // フェードアウト
 		count = min(count+1,16);
 		DSP_SetGraphParam( GRP_WORK, DRW_BLD( 256-count*16) );
 		DSP_SetGraphParam( GRP_WORK+1, DRW_BLD( 256-count*16) );
 		DSP_SetGraphParam( GRP_WORK+2, DRW_BLD( 256-count*16) );
 
-		if( count>=16 ){
+		if( count>=16 ){ // リソース解放して完了
 
 			DSP_ResetGraph( GRP_WORK );
 			DSP_ResetGraph( GRP_WORK+1 );
