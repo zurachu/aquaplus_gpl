@@ -4079,7 +4079,7 @@ int AVG_ControlMapEvent( void )
 			scnt = 0;
 			break;
 		case 1:
-			if( AVG_ViewClock( 19 ) ){
+			if( AVG_ViewClock( 19 ) ){ // 移動選択前に放課後時刻の時計を表示
 				MapStep = 2;
 				scnt = 0;
 
